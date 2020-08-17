@@ -3,11 +3,11 @@
 // some of the functions require proper GIT set up, see the presentation from Serkay and Fred in the Discovery summit
 names default to here(1);
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-check_for_ppt = Function( {saved_ppt_path_,source_ppt_local_path_,newest_ppt_date_}, //using the creation date to check if the PPT needs to be updated.
-	if(!File Exists(saved_ppt_path_),request = New HTTP Request(URL(source_ppt_local_path_), Method( "Get" ));request<<download(saved_ppt_path_);,
-		try(timestamp = Creation Date(saved_ppt_path_);;
+check_for_file = Function( {saved_file_path_,source_ppt_local_path_,newest_ppt_date_}, //using the creation date to check if the PPT needs to be updated.
+	if(!File Exists(saved_file_path_),request = New HTTP Request(URL(source_ppt_local_path_), Method( "Get" ));request<<download(saved_file_path_);,
+		try(timestamp = Creation Date(saved_file_path_);;
 			delta=newest_ppt_date_-timestamp;
-			if(delta>0,	try(Delete File(saved_ppt_path_);request = New HTTP Request(URL(source_ppt_local_path_), Method( "Get" ));request<<download(saved_ppt_path_)));
+			if(delta>0,	try(Delete File(saved_file_path_);request = New HTTP Request(URL(source_ppt_local_path_), Method( "Get" ));request<<download(saved_file_path_)));
 			)
 	)
 );
@@ -50,8 +50,8 @@ launchPPT = Function( {addin_path_,ppt_file_, macro_},// trigger the PPT with th
 	  dialog(line up(1,"Could not locate POWERPNT.EXE, You will need to run PPT macro manualy","PPT is @"||pathin, "Go to View-->Macros-->import_images-->Run" 	))
 	);
 	if(pptexefound==1,// if POWERPNT.EXE is located, create a bat file and run it.
-		Save Text File(	main_dir|| "launchPPT.bat","\!""||temppath||"POWERPNT.exe\!" /M \!""||addin_path_||ppt_file_||"\!" \!""||macro_||"\!"  \!nexit" );
-		Open( main_dir || "launchPPT.bat" );
+		Save Text File(	ppt_temp_folder|| "launchPPT.bat","\!""||temppath||"POWERPNT.exe\!" /M \!""||addin_path_||ppt_file_||"\!" \!""||macro_||"\!"  \!nexit" );
+		Open( ppt_temp_folder || "launchPPT.bat" );
 	);
 );
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -194,12 +194,27 @@ logreporter=function({addin_name,username,addin_path_,logtext_,bugloc_},// pop u
 //TOP of the Script
 
 newest_ppt_local_date=13Aug2020:23:09:00; // this is the date the PPT in git was updated. If local PPT file is older, it will be updated
-addin_name="export_images";// this script will be installed as an addin. This is the name for it.
+addin_name="IMAGETABLE_TO_PPT";// this script will be installed as an addin. This is the name for it.
+addin_path="C:\IMAGETABLE_TO_PPT\";//set the path to the addin folder.
 tablename="export_images_options.jmp"; // there will be a JMP table which users can modify to customize the script easily.
-pptlayoutdir="ppt layout scripts/"; //this directory has the custom layouts
-logreturned="";try(data table("summary_for_ppt")<<close window()); try(dt_desc=currentdata table(););  // clean up from previous run and take the active table.
+pptlayoutdir="ppt layout scripts\"; //this directory has the custom layouts
+ppt_local_path="https://github.com/quarktetra/JMP_Discovery_2020_git_demo/blob/master/image_importer_local.pptm?raw=true";// path to PPT
 
-main_dir="C:\image_exporter_temp_folder\";Delete Directory(main_dir);Create Directory(main_dir);// a temp folder to hold csv file for PPT input
+av_templates=associative array();
+av_templates["one_big_two_small.jsl"]= "https://raw.githubusercontent.com/quarktetra/JMP_Discovery_2020_git_demo/master/one_big_three_small.jsl"; // path to template scripts
+av_templates["one_big_three_small.jsl"]="https://raw.githubusercontent.com/quarktetra/JMP_Discovery_2020_git_demo/master/one_big_two_small.jsl";
+
+
+Create Directory(addin_path); // just create the directory in case the script is not installed via addin.
+Create Directory(addin_path||pptlayoutdir);//will create if missing. This is the directory to hold custom layout scripts. These can be saved manually ot pushed in by developer
+
+av_templates_keys=av_templates<<Get Keys();
+for(aa=1,aa<=nitems(av_templates_keys),aa++,// retrieve these files from repo if they don't exist. Not refresh is enforced here. Will do this only once.
+check_for_file(addin_path||pptlayoutdir||av_templates_keys[aa],av_templates[av_templates_keys[aa]],0)
+);
+
+logreturned="";try(data table("summary_for_ppt")<<close window()); try(dt_desc=currentdata table(););  // clean up from previous run and take the active table.
+ppt_temp_folder=addin_path||"ppt_temp_folder\";Delete Directory(ppt_temp_folder);Create Directory(ppt_temp_folder);// a temp folder to hold csv file for PPT input
 
 if(is empty(dt_desc),// if no table, remind the user and quit.
 	New Window("Missing Table",<<Modal,Textbox("You need to have a table with image paths!"),Spacer Box(Size(80, 15)),H List Box(Spacer Box(Size(80, 15)),ButtonBox("OK")));throw()
@@ -219,9 +234,7 @@ default_setup["ppt layout"]={"grid","one_big_two_small.jsl","one_big_three_small
 default_setup_keys=default_setup<<Get Keys;
 
 
-addin_path="C:\IMAGETABLE_TO_PPT\";//set the path to the addin folder.
 
-Create Directory(addin_path); // just create the directory in case the script is not installed via addin.
 
 try(logreturned=log capture(image_opt=get_image_options(default_setup,tablename,addin_path)));// Get the user settings. If not available, push in the defaults.
 if(logreturned!=""&contains(logreturned,"*###*"), logreporter(addin_name,username,addin_path,logreturned, "get_image_options") );// Report the faliures to the developer.
@@ -230,20 +243,22 @@ img_per_row_List =parse(image_opt["Images Per Row"]);// Dropdown list for images
 img_num_rows_List=parse(image_opt["Number of Rows"]); //Dropdown list for number of rows. Will be something of this form     {"2","1"};
 
 
-ppt_local_path="https://github.com/quarktetra/JMP_Discovery_2020_git_demo/blob/master/image_importer_local.pptm?raw=true";
 try(Eval(Parse(LoadTextFile(addin_path||"utilities.jsl"))));// this loads the actual path to the PPT location and certain server paths
 													        // server paths are saved externally due for security	
 													        // script will still work without it, but won't have git related features
 
 
 
-Create Directory(addin_path||pptlayoutdir);//will create if missing. This is the directory to hold custom layout scripts. These can be saved manually ot pushed in by developer
 
-Files In Directory(addin_path||pptlayoutdir);
 
-{"grid","one_big_two_small.jsl","one_big_three_small.jsl"};
+
+
 
 custom_layouts0 = Files In Directory( addin_path||pptlayoutdir ); // get the files under the directory. Will keep only the ones with .jsl extension.
+
+
+
+
 custom_layouts={};
 for(cc=1,cc<=nitems(custom_layouts0),cc++,
  if(substr(custom_layouts0[cc],length(custom_layouts0[cc])-3)==".jsl",insert into(custom_layouts,substr(custom_layouts0[cc],1,length(custom_layouts0[cc])-4)))
@@ -263,7 +278,7 @@ if(contains(user_ppt_layout_list,"grid")==0,insert into(user_ppt_layout_list,"gr
  
 image_opt["ppt layout"]=user_ppt_layout_list;// pushing the final list into the array. It will shuttle it across functions.
 if(ppt_local_path!="place_holder_path", // if the proper path to git is not set, skip the update. For a properly set gitpath script will check if a new version of PPT is available.
-	try(logreturned=log capture(check_for_ppt(addin_path||"image_importer_local.pptm",ppt_local_path,newest_ppt_local_date);));
+	try(logreturned=log capture(check_for_file(addin_path||"image_importer_local.pptm",ppt_local_path,newest_ppt_local_date);));
 	if(logreturned!=""&contains(logreturned,"*###*"), 	
 		dialog("There is a new PPT Macro, but failed to update "||"image_importer_local.pptm. It may be open. Please close the file and try again." );
 	);
@@ -326,6 +341,7 @@ if(custom_layouts_selected!="grid",	// run the custom layout, report errors
 	try(logreturned=log capture( Eval(Parse(LoadTextFile(addin_path||pptlayoutdir||custom_layouts_selected||".jsl")))) );// Get the user settings. If not available, push in the defaults.
 	if(logreturned!=""&contains(logreturned,"*###*"),logreporter(addin_name,username,addin_path,logreturned, custom_layouts_selected) );// Report the faliures to the developer.	
 );
+
 if(custom_layouts_selected=="grid", // grid computations
 	img_per_row_value=num(img_per_row_value);img_num_row_value=num(img_num_row_value); // convert to numerical
 	image_s=800/img_per_row_value;
@@ -360,7 +376,7 @@ if(custom_layouts_selected=="grid", // grid computations
 dtimages << move selected columns({:slide_number,:slide_title,:image_path_ppt_export,:x_coord,:y_coord,:image_size,:plot_title}, to first); // reorder to comply with PPT VBA macro
 //dtimages<<select where(is missing(:image_path_ppt_export));dtimages<<delete rows();
 
-try(logreturned=log capture(dtimages<<save(main_dir||"summary_for_ppt_"||substitute(char(as date(today())),":","_")||".csv");));// save with a time stamp to avoid overwriting 
+try(logreturned=log capture(dtimages<<save(ppt_temp_folder||"summary_for_ppt_"||substitute(char(as date(today())),":","_")||".csv");));// save with a time stamp to avoid overwriting 
 // overwriting will cause issues once in a while as OS protects the file as read only.
 
 
