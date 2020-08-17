@@ -193,7 +193,6 @@ logreporter=function({addin_name,username,addin_path_,logtext_,bugloc_},// pop u
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //TOP of the Script
 
-newest_ppt_local_date=13Aug2020:23:09:00; // this is the date the PPT in git was updated. If local PPT file is older, it will be updated
 addin_name="IMAGETABLE_TO_PPT";// this script will be installed as an addin. This is the name for it.
 addin_path="C:\IMAGETABLE_TO_PPT\";//set the path to the addin folder.
 tablename="export_images_options.jmp"; // there will be a JMP table which users can modify to customize the script easily.
