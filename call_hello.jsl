@@ -1,0 +1,3 @@
+//JMP Discovery Summit, 2020. Calling a script that lives in GITHUB.
+Eval(Parse(LoadTextFile("https://raw.githubusercontent.com/quarktetra/JMP_Discovery_2020_git_demo/master/hello.jsl"||"?RI=x"||hex(Floor(RandomUniform(2^64))))));
+//The random number attached to the link enforces reload everytime rather than using cache
