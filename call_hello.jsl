@@ -3,3 +3,5 @@
 url="https://raw.githubusercontent.com/quarktetra/JMP_Discovery_2020_git_demo/master/hello.jsl"||"?q="||hex(Floor(RandomUniform(2^64)));
 Eval(Parse(LoadTextFile(url)));
 //The random number attached to the link enforces reload everytime rather than using cache
+// With GitHub public, this can take up to few mins.
+// if refresh fails, restrating JMP will enforce the refresh.
