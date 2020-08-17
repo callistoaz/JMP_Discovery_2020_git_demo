@@ -1,29 +1,6 @@
 //JMP Discovery Summit, 2020. Calling a script that lives in GITHUB.
 // This is a static script distributed to users (possibly with addins.)
 url="https://raw.githubusercontent.com/quarktetra/JMP_Discovery_2020_git_demo/master/hello.jsl"||"?q="||hex(Floor(RandomUniform(2^64)));
+refresher=open(url,html(1));;
 Eval(Parse(LoadTextFile(url)));
-
 //The random number attached to the link enforces reload everytime rather than using cache
-
-make_unique = Function({url}, {Default Local},
-    sep = If(Contains(url, "?"), "&", "?");
-    new_url = url || sep || Char(Abs(Random Normal()))
-);
-// test
-urlm=make_unique("https://raw.githubusercontent.com/quarktetra/JMP_Discovery_2020_git_demo/master/hello.jsl");
-Eval(Parse(LoadTextFile(urlm)));
-
-
-GTXJSN_LoadScriptFromRepoOrDie=Function({repo,file,hb="HEAD"},{Default Local},
-	rix=";RI=x"||hex(floor(RandomUniform(2^64)));
-	url="http://mnitcvs.nrm.minn.seagate.com/WebSVN/filedetails.php?repname=";
-	if(repo=="GTXJSN",url="http://gtx.nrm.minn.seagate.com/~gtx/scripts/jmp/"||file||"?GTXJSN_USERID="||GTXJSN_USERID()||rix
-		,if(repo=="MNITGITLAB",url="http://mnitgitlab.nrm.minn.seagate.com/"||file||"?GTXJSN_USERID="||GTXJSN_USERID()||rix
-		,if(repo=="jmp.seagate.com",url="https://jmp.seagate.com/"||file||"?GTXJSN_USERID="||GTXJSN_USERID()||rix
-		,if(repo=="NRM_EI-JMP",url="http://mnitgitlab.nrm.minn.seagate.com/EDS-APPS-NRM_EI/JMP-core/raw/master/"||file||"?GTXJSN_USERID="||GTXJSN_USERID()||rix
-		,if(repo=="451516-SixSigmaAutomation",url="http://gtxsys.nrm.minn.seagate.com/gitweb/?p=USERS/451516/SixSigmaAutomation;a=blob_plain;hb="||hb||";f="||GTXJSN_url_string_escape(file)||";GTXJSN_USERID="||GTXJSN_USERID()||rix
-		,url="http://gtxsys.nrm.minn.seagate.com/gitweb/?p="||repo||";a=blob_plain;hb="||hb||";f="||GTXJSN_url_string_escape(file)||";GTXJSN_USERID="||GTXJSN_USERID()||rix
-		)))));
-	GTXJSN_LoadScriptFromURLOrDie(url);
-	);
-GTXJSN_RunScriptFromRepoOrDie=Function({repo,file,hb="HEAD"},{Default Local},ST=GTXJSN_LoadScriptFromRepoOrDie(repo,file,hb);Eval(Parse(ST)););
