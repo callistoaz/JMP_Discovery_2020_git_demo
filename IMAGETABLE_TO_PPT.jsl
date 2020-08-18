@@ -3,6 +3,15 @@
 // some of the functions require proper GIT set up, see the presentation from Serkay and Fred in the Discovery summit
 names default to here(1);
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+get_user_id = Function( {}, 	// get user id from the environment
+	dll = Load DLL( "mpr.dll" );
+	dll << DeclareFunction("WNetGetUserA",
+    Convention( STDCALL ), Alias ( "GetUserName" ), Arg( UInt8, "format", input ), Arg( AnsiString, "username", output ),
+    Arg( UInt64, "length", update ),Returns( UInt32 ));
+	username = "                                                  ";;unlen = length(username);result = dll << GetUserName(0, username, unlen);dll << UnloadDLL();
+	username;
+);
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 check_for_file = Function( {saved_file_path_,source_ppt_local_path_,newest_ppt_date_}, //using the creation date to check if the PPT needs to be updated.
 	if(!File Exists(saved_file_path_),request = New HTTP Request(URL(source_ppt_local_path_), Method( "Get" ));request<<download(saved_file_path_);,
 		try(timestamp = Creation Date(saved_file_path_);;
@@ -165,8 +174,8 @@ logreporter=function({addin_name,username,addin_path_,logtext_,bugloc_},// pop u
 
 	crash_logs=:crash_log<<get values(); dates=:Date<<get values();
 	thislogentry=logtext_||"__@__"||bugloc_;
-	if(substr(thislogentry,1,1)=="
-	",thislogentry=substr(thislogentry,3,length(thislogentry)));
+
+    thislogentry=substr(thislogentry,3,length(thislogentry));// removing new line
 
 
 	logexists=loc(crash_logs,thislogentry);
@@ -175,7 +184,7 @@ logreporter=function({addin_name,username,addin_path_,logtext_,bugloc_},// pop u
 		dtlog<<add rows(1);:GID[index]=username;:script_name[index]=addin_name;:crash_log[index]=thislogentry; :Date[index]=Today()
 	);
 	dtlog<<save(addin_path_||"crashlog.jmp"); dtlog<<close window();
-	if(logexists==0,
+	if(nrow(logexists)==0,
 		nw = New Window( "Something Went Wrong!", <<modal, V List Box(
 						panel box("",Text Box("Script Failed with the following log:"||logtext_))),
 						panel box("",Text Box ("A crash report has been created. We will be working on it") ) 
@@ -190,9 +199,38 @@ logreporter=function({addin_name,username,addin_path_,logtext_,bugloc_},// pop u
 	print(" aborting with a report @ "||bugloc_||" with this error: "||logtext_);	throw();
 );
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+grid_layout=function({},
+	img_per_row_value=num(img_per_row_value);img_num_row_value=num(img_num_row_value); // convert to numerical
+	image_s=800/img_per_row_value;
+	if(img_per_row_value==3,image_s=600/img_per_row_value;);
+	if(image_s>200 &img_num_row_value>1&img_per_row_value<3,image_s=200);  // making sure images will fit nicely. Requires a bit trial and error to set the image size
+	// Compute the image and slide ids. These will be passed to PPT in a CSV
+	if(nitems(selected_slide)==0,// if no slide splitting column is selected, a new slide is added only when image index exceeds img_per_row_value*img_num_row_value
+		dtimages<<new column("slide_title",formula("TBD slide title"));
+		dtimages<<new column("slide_number",formula(1+floor(((row()-1)/(img_per_row_value*img_num_row_value)))));
+		dtimages<<new column("image_index",formula(row()))
+	, /// if a slide splitting column is selected, a new slide is added when the column content changes or when image index exceeds img_per_row_value*img_num_row_value
+		eval(substitute(expr(dtimages<<new column("slide_number",
+			  formula(if(row()==1,1,if( as column(_scol)[row()-1]==as column(_scol)[row()],:slide_number[row()-1],:slide_number[row()-1]+1))))),
+			  expr(_scol),selected_slide[1]));
+		eval(substitute(expr(dtimages<<new column("image_index",
+			 formula(if(row()==1,1,if( as column(_scol)[row()-1]!=as column(_scol)[row()],1,:image_index[row()-1],:image_index[row()-1]+1))))),
+			 expr(_scol),selected_slide[1]));
+		eval(substitute(expr(dtimages<<new column("slide_title", 
+			formula( selected_slide[1]||": "||char(as column(_scol))))),
+			 expr(_scol),selected_slide[1]));
+	);
+
+
+	dtimages<<new column("x_coord",formula(30+(image_s+20)*(mod(:image_index-1,(img_per_row_value)))));
+	dtimages<<new column("y_coord",formula(if(Mod( :image_index - 1, img_per_row_value * img_num_row_value ) > img_per_row_value - 1,330,80)));	
+	:x_coord<< delete formula();:y_coord<< delete formula();dtimages<<delete column("image_index");if(nitems(selected_ipath)==1,dtimages<<delete column("image_type"));
+	dtimages<<new column("image_size",formula(image_s));
+	dtimages<<new column("plot_title",formula("TBD plot title")) ; // can add a title to each image. Not implemented for now. Instead a table/image will show
+);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //TOP of the Script
-
+newest_ppt_local_date=13Aug2020:23:09:00; // this is the date the PPT in git was updated. If local PPT file is older, it will be updated
 addin_name="IMAGETABLE_TO_PPT";// this script will be installed as an addin. This is the name for it.
 addin_path="C:\IMAGETABLE_TO_PPT\";//set the path to the addin folder.
 tablename="export_images_options.jmp"; // there will be a JMP table which users can modify to customize the script easily.
@@ -206,6 +244,10 @@ av_templates["one_big_three_small.jsl"]="https://raw.githubusercontent.com/quark
 
 Create Directory(addin_path); // just create the directory in case the script is not installed via addin.
 Create Directory(addin_path||pptlayoutdir);//will create if missing. This is the directory to hold custom layout scripts. These can be saved manually ot pushed in by developer
+
+try(logreturned=log capture(user_name=get_user_id())); // user id can be collected from environment. 
+if(logreturned!=""&contains(logreturned,"*###*"),user_name="unknown"; print("Could not resolve the username. Proceeding without it") );// Print the error if any, and throw.
+
 
 av_templates_keys=av_templates<<Get Keys();
 for(aa=1,aa<=nitems(av_templates_keys),aa++,// retrieve these files from repo if they don't exist. Not refresh is enforced here. Will do this only once.
@@ -341,34 +383,9 @@ if(custom_layouts_selected!="grid",	// run the custom layout, report errors
 	if(logreturned!=""&contains(logreturned,"*###*"),logreporter(addin_name,username,addin_path,logreturned, custom_layouts_selected) );// Report the faliures to the developer.	
 );
 
-if(custom_layouts_selected=="grid", // grid computations
-	img_per_row_value=num(img_per_row_value);img_num_row_value=num(img_num_row_value); // convert to numerical
-	image_s=800/img_per_row_value;
-	if(img_per_row_value==3,image_s=600/img_per_row_value;);
-	if(image_s>200 &img_num_row_value>1&img_per_row_value<3,image_s=200);  // making sure images will fit nicely. Requires a bit trial and error to set the image size
-	// Compute the image and slide ids. These will be passed to PPT in a CSV
-	if(nitems(selected_slide)==0,// if no slide splitting column is selected, a new slide is added only when image index exceeds img_per_row_value*img_num_row_value
-		dtimages<<new column("slide_title",formula("TBD slide title"));
-		dtimages<<new column("slide_number",formula(1+floor(((row()-1)/(img_per_row_value*img_num_row_value)))));
-		dtimages<<new column("image_index",formula(row()))
-	, /// if a slide splitting column is selected, a new slide is added when the column content changes or when image index exceeds img_per_row_value*img_num_row_value
-		eval(substitute(expr(dtimages<<new column("slide_number",
-			  formula(if(row()==1,1,if( as column(_scol)[row()-1]==as column(_scol)[row()],:slide_number[row()-1],:slide_number[row()-1]+1))))),
-			  expr(_scol),selected_slide[1]));
-		eval(substitute(expr(dtimages<<new column("image_index",
-			 formula(if(row()==1,1,if( as column(_scol)[row()-1]!=as column(_scol)[row()],1,:image_index[row()-1],:image_index[row()-1]+1))))),
-			 expr(_scol),selected_slide[1]));
-		eval(substitute(expr(dtimages<<new column("slide_title", 
-			formula( selected_slide[1]||": "||char(as column(_scol))))),
-			 expr(_scol),selected_slide[1]));
-	);
-
-
-	dtimages<<new column("x_coord",formula(30+(image_s+20)*(mod(:image_index-1,(img_per_row_value)))));
-	dtimages<<new column("y_coord",formula(if(Mod( :image_index - 1, img_per_row_value * img_num_row_value ) > img_per_row_value - 1,330,80)));	
-	:x_coord<< delete formula();:y_coord<< delete formula();dtimages<<delete column("image_index");if(nitems(selected_ipath)==1,dtimages<<delete column("image_type"));
-	dtimages<<new column("image_size",formula(image_s));
-	dtimages<<new column("plot_title",formula("TBD plot title")) ; // can add a title to each image. Not implemented for now. Instead a table/image will show
+if(custom_layouts_selected=="grid", 
+	try(logreturned=log capture(grid_layout()));// Compute the coordinates with grid layout
+	if(logreturned!=""&contains(logreturned,"*###*"),logreporter(addin_name,username,addin_path,logreturned, "grid_layout") );// Report the faliures to the developer.	
 );
 
 :slide_title<<delete formula(); if(nitems(selected_slide)>0,dtimages<<delete column(selected_slide[1]));
