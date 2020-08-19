@@ -97,11 +97,11 @@ create_dialog_panel=function({nc,dt_desc,image_opt},	// this builds up the dialo
 			selecterpanel=expr(
 						  PanelBox("Confirm/Modify column selections",
 									LineupBox(NCol(2),Spacing(3),
-									     ButtonBox("Image Path(s)",   colList_ipath<<Append(colListData<<GetSelected);),
+									    ipath_button= ButtonBox("Image Path(s)",   colList_ipath<<Append(colListData<<GetSelected);),
 																	colList_ipath = ColListBox(nLines(4)),ipathadd_,
-										ButtonBox("Image Label(s)", colList_ilabel<<Append(colListData<<GetSelected);),
+										ilabel_button=ButtonBox("Image Label(s)", colList_ilabel<<Append(colListData<<GetSelected);),
 																	colList_ilabel= ColListBox(nLines(4)),tcoladd_,
-										 ButtonBox("Slide Label(s)",colList_slabel<<Append(colListData<<GetSelected);),
+										slabel_button=ButtonBox("Slide Label(s)",colList_slabel<<Append(colListData<<GetSelected);),
 																	colList_slabel= ColListBox(nLines(1)),tcoladd_slide_	
 										
 										
@@ -141,7 +141,7 @@ create_dialog_panel=function({nc,dt_desc,image_opt},	// this builds up the dialo
 										    
 										    SpacerBox(Size(1, 10)),
 											H list box(
-														bbx=button_Start_Querying=Button Box("Start Export",
+														button_Start_Querying=Button Box("Start Export",
 																	selected_tcol=(colList_ilabel<<Get Items);
 																	selected_ipath=(colList_ipath<<Get Items);
 																	selected_slide=(colList_slabel<<Get Items);
@@ -152,7 +152,7 @@ create_dialog_panel=function({nc,dt_desc,image_opt},	// this builds up the dialo
 																	img_num_row_value=img_num_row<<get selected;
 																	if(nitems(user_ppt_layout_list)>1,custom_layouts_selected=custom_layouts_cb<<get selected);
 																	
-																	if(nitems(selected_ipath)>0,canceled=0;bbx<<close window)
+																	if(nitems(selected_ipath)>0,canceled=0;button_Start_Querying<<close window)
 															), 
 														Button Box( "Cancel", canceled=1;)
 												)	
@@ -230,13 +230,13 @@ grid_layout=function({},
 );
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //TOP of the Script
+try(testmode,testmode=0); print(testmode);// an external tester script will drive this parameter. If this is run stand alone, disable it.
 newest_ppt_local_date=13Aug2020:23:09:00; // this is the date the PPT in git was updated. If local PPT file is older, it will be updated
 addin_name="IMAGETABLE_TO_PPT";// this script will be installed as an addin. This is the name for it.
 addin_path="C:\IMAGETABLE_TO_PPT\";//set the path to the addin folder.
 tablename="export_images_options.jmp"; // there will be a JMP table which users can modify to customize the script easily.
 pptlayoutdir="ppt layout scripts\"; //this directory has the custom layouts
 ppt_local_path="https://github.com/quarktetra/JMP_Discovery_2020_git_demo/blob/master/image_importer_local.pptm?raw=true";// path to PPT
-
 av_templates=associative array();
 av_templates["one_big_two_small.jsl"]= "https://raw.githubusercontent.com/quarktetra/JMP_Discovery_2020_git_demo/master/one_big_three_small.jsl"; // path to template scripts
 av_templates["one_big_three_small.jsl"]="https://raw.githubusercontent.com/quarktetra/JMP_Discovery_2020_git_demo/master/one_big_two_small.jsl";
@@ -338,14 +338,18 @@ if(logreturned!=""&contains(logreturned,"*###*"), logreporter(addin_name,usernam
 
 canceled=1;
 
+if(testmode==0,UiTester=expr());
 
-mytester=expr( );// disabling the tester for now
 
-nwine=expr(New Window( "Query Options",<< Modal,unit_,returned_panel_));; 
-nwin=Substitute(name Expr(nwine),expr(unit_),parse(char(name expr(mytester))),expr(returned_panel_),returned_panel); //injecting the tester
+
+//UiTester=expr( );// disabling the tester for now
+
+
+nwine=expr(New Window( "Query Options",<< Modal,UiTester_,returned_panel_));; 
+nwin=Substitute(name Expr(nwine),expr(UiTester_),parse(char(name expr(UiTester))),expr(returned_panel_),returned_panel);
+
 
 eval(nwin);if(canceled==1,throw()); // run the dialog. Throw if canceled.
-
 
 try(dt_desc<<delete column("_selected_rows_"););// deleting a column that might be left over from previous run.
 // the script has an option to push only the selected rows of images to PPT. Marking such rows and carrying the marker along the computation.
